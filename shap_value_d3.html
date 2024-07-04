@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ScatterPlot com D3.js</title>
+    <style>
+        .dot {
+            stroke: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Shap Values</h1>
+    <div id="scatterPlot"></div>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        const margin = { top: 20, right: 30, bottom: 40, left: 350 },
+              width = 980 - margin.left - margin.right,
+              height = 500 - margin.top - margin.bottom;
+
+        const svg = d3.select("#scatterPlot")
+            .append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+        d3.json("shap_values_complete.json").then(data => {
+            let longData = [];
+            data.forEach(d => {
+                for (let key in d) {
+                    if (!key.includes("_value")) {
+                        longData.push({
+                            variable: key,
+                            value: d[key],
+                            originalValue: d[key + "_value"]
+                        });
+                    }
+                }
+            });
+
+            const variables = Array.from(new Set(longData.map(d => d.variable)));
+
+            const x = d3.scaleLinear()
+                .domain(d3.extent(longData, d => d.value))
+                .range([0, width]);
+            
+            svg.append("g")
+                .attr("transform", "translate(0," + height + ")")
+                .call(d3.axisBottom(x));
+
+            const y = d3.scalePoint()
+                .domain(variables)
+                .range([0, height])
+                .padding(1);
+
+            svg.append("g")
+                .call(d3.axisLeft(y));
+
+            // Adiciona uma linha vertical no ponto 0 do eixo Y
+            svg.append("line")
+                .attr("x1", x(0))
+                .attr("x2", x(0))
+                .attr("y1", 0)
+                .attr("y2", height)
+                .style("stroke", "black") // Cor
+                .style("stroke-width", 1); // Largura
+
+            const color = d3.scaleSequential(d3.interpolateRdBu)
+                //.domain(d3.extent(longData, d => d.originalValue).reverse());
+                .domain([0.9, 0.2]);
+            
+            svg.append('g')
+                .selectAll("dot")
+                .data(longData)
+                .enter()
+                .append("circle")
+                .attr("class", "dot")
+                .attr("cx", d => x(d.value))
+                .attr("cy", d => y(d.variable))
+                .attr("r", 4)
+                .style("fill", d => color(d.originalValue));
+
+            // heatmap
+            const legendWidth = 20;
+            const legendHeight = height;
+            const legendPositionX = width + 20;
+            
+            svg.append("rect")
+                .attr("x", legendPositionX)
+                .attr("y", 0)
+                .attr("width", legendWidth)
+                .attr("height", legendHeight)
+                .style("fill", "url(#gradient)");
+            
+            // Definir um gradiente
+            const gradient = svg.append("defs")
+              .append("linearGradient")
+                .attr("id", "gradient")
+                .attr("x1", "0%")
+                .attr("x2", "0%")
+                .attr("y1", "100%")
+                .attr("y2", "0%");
+
+            gradient.append("stop")
+                .attr("offset", "0%")
+                .attr("stop-color", d3.interpolateRdBu(0.9)); // Cor para o valor maixmo
+            
+            gradient.append("stop")
+                .attr("offset", "100%")
+                .attr("stop-color", d3.interpolateRdBu(0.2)); // Cor para o valor mínimo
+            
+
+        }).catch(error => {
+            console.error('Error loading or parsing data:', error);
+        });
+    </script>
+</body>
+</html>
