@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>ScatterPlot com D3.js</title>
+    <title>ScatterPlot em D3.js</title>
     <style>
         .dot {
             stroke: none;
@@ -15,8 +15,8 @@
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script>
         const margin = { top: 20, right: 30, bottom: 40, left: 350 },
-              width = 980 - margin.left - margin.right,
-              height = 500 - margin.top - margin.bottom;
+              width = 1200 - margin.left - margin.right,
+              height = 700 - margin.top - margin.bottom;
 
         const svg = d3.select("#scatterPlot")
             .append("svg")
@@ -44,10 +44,6 @@
             const x = d3.scaleLinear()
                 .domain(d3.extent(longData, d => d.value))
                 .range([0, width]);
-            
-            svg.append("g")
-                .attr("transform", "translate(0," + height + ")")
-                .call(d3.axisBottom(x));
 
             const y = d3.scalePoint()
                 .domain(variables)
@@ -55,32 +51,58 @@
                 .padding(1);
 
             svg.append("g")
+                .attr("transform", "translate(0," + height + ")")
+                .call(d3.axisBottom(x));
+
+            svg.append("g")
                 .call(d3.axisLeft(y));
 
-            // Adiciona uma linha vertical no ponto 0 do eixo Y
             svg.append("line")
                 .attr("x1", x(0))
                 .attr("x2", x(0))
                 .attr("y1", 0)
                 .attr("y2", height)
-                .style("stroke", "black") // Cor
-                .style("stroke-width", 1); // Largura
+                .style("stroke", "black")
+                .style("stroke-width", 1);
 
-            const color = d3.scaleSequential(d3.interpolateRdBu)
-                //.domain(d3.extent(longData, d => d.originalValue).reverse());
-                .domain([0.9, 0.2]);
-            
-            svg.append('g')
-                .selectAll("dot")
-                .data(longData)
-                .enter()
-                .append("circle")
-                .attr("class", "dot")
-                .attr("cx", d => x(d.value))
-                .attr("cy", d => y(d.variable))
-                .attr("r", 4)
-                .style("fill", d => color(d.originalValue));
+            // Função de interpolação personalizada
+            function customInterpolateRdBu(t) {
+                // Ajusta 't' para evitar o meio exato, modificando a distribuição de cores
+                const adjustedT = t < 0.5 ? t * 0.8 : 0.2 + (t * 0.8);
+                return d3.interpolateRdBu(adjustedT);
+            }
 
+            // Aplicando a função de interpolação personalizada à escala
+            const color = d3.scaleSequential(customInterpolateRdBu)
+                        .domain([1, 0]);
+
+            const nbins = 1000;
+            const histogram = d3.histogram()
+                .value(d => d.value)
+                .domain(x.domain())
+                .thresholds(x.ticks(nbins));
+
+            variables.forEach(variable => {
+                const dataPerVariable = longData.filter(d => d.variable === variable);
+                const bins = histogram(dataPerVariable);
+
+                const bandwith = 50;
+                const histMax = d3.max(bins, d => d.length);
+
+                bins.forEach(bin => {
+                    const centerX = (bin.x0 + bin.x1) / 2;
+                    const values_y = d3.range(-bandwith/2*bin.length/histMax, bandwith/2*bin.length/histMax, bandwith/bin.length);
+
+                    bin.forEach((d, i) => {
+                        svg.append("circle")
+                            .attr("class", "dot")
+                            .attr("cx", x(centerX))
+                            .attr("cy", y(variable) + values_y[i])
+                            .attr("r", 4)
+                            .style("fill", color(d.originalValue));
+                    });
+                });
+            });
             // heatmap
             const legendWidth = 20;
             const legendHeight = height;
@@ -104,12 +126,11 @@
 
             gradient.append("stop")
                 .attr("offset", "0%")
-                .attr("stop-color", d3.interpolateRdBu(0.9)); // Cor para o valor maixmo
+                .attr("stop-color", d3.interpolateRdBu(1)); // Cor para o valor maixmo
             
             gradient.append("stop")
                 .attr("offset", "100%")
-                .attr("stop-color", d3.interpolateRdBu(0.2)); // Cor para o valor mínimo
-            
+                .attr("stop-color", d3.interpolateRdBu(0)); // Cor para o valor mínimo
 
         }).catch(error => {
             console.error('Error loading or parsing data:', error);
